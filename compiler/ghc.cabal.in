@@ -192,6 +192,14 @@ Library
         types
         utils
         hieFile
+        ghc-external-splices-plugin/src
+
+    Other-Modules:
+        Splices.Plugin
+        Splices.Data
+        Splices.Conversions
+        Splices.Serialise.Class
+        Splices.Serialise.Instances
 
     -- we use an explicit Prelude
     Default-Extensions:

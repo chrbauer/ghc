@@ -110,3 +110,6 @@
 [submodule "libraries/exceptions"]
 	path = libraries/exceptions
 	url = https://gitlab.haskell.org/ghc/packages/exceptions
+[submodule "compiler/ghc-external-splices-plugin"]
+	path = compiler/ghc-external-splices-plugin
+	url = https://github.com/obsidiansystems/ghc-external-splices-plugin

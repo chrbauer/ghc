@@ -67,7 +67,7 @@ initializePlugins hsc_env df
      && all (\p -> paArguments (lpPlugin p)
                        == argumentsForPlugin p (pluginModNameOpts df))
             (cachedPlugins df) -- arguments not changed
-  = return df -- no need to reload plugins
+  = withPlugins df runDflagsPlugin df -- make sure we runDflagsPlugin for static plugins
   | otherwise
   = do loadedPlugins <- loadPlugins (hsc_env { hsc_dflags = df })
        let df' = df { cachedPlugins = loadedPlugins }
