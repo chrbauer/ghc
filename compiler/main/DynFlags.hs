@@ -328,6 +328,8 @@ import qualified GHC.LanguageExtensions as LangExt
 import Foreign (Ptr)
 #endif
 
+import {-# SOURCE #-} qualified Splices.Plugin
+
 -- Note [Updating flag description in the User's Guide]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 --
@@ -2012,7 +2014,7 @@ defaultDynFlags mySettings llvmConfig =
         pluginModNameOpts       = [],
         frontendPluginOpts      = [],
         cachedPlugins           = [],
-        staticPlugins           = [],
+        staticPlugins           = [Splices.Plugin.staticPlugin],
         hooks                   = emptyHooks,
 
         outputFile              = Nothing,
@@ -4602,6 +4604,7 @@ defaultFlags settings
       Opt_KeepHiFiles,
       Opt_KeepOFiles,
       Opt_OmitYields,
+      Opt_PluginTrustworthy, -- For external splices plugin, when building the compiler itself
       Opt_PrintBindContents,
       Opt_ProfCountEntries,
       Opt_SharedImplib,
