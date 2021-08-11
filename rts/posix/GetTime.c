@@ -25,7 +25,7 @@
 #error No implementation for getProcessCPUTime() available.
 #endif
 
-#if defined(darwin_HOST_OS)
+#if defined(darwin_HOST_OS) || defined(ios_HOST_OS)
 #include <mach/mach_time.h>
 #include <mach/mach_init.h>
 #include <mach/thread_act.h>
@@ -36,14 +36,14 @@
 // we'll implement getProcessCPUTime() and getProcessElapsedTime()
 // separately, using getrusage() and gettimeofday() respectively
 
-#if defined(darwin_HOST_OS)
+#if defined(darwin_HOST_OS) || defined(ios_HOST_OS)
 static uint64_t timer_scaling_factor_numer = 0;
 static uint64_t timer_scaling_factor_denom = 0;
 #endif
 
 void initializeTimer()
 {
-#if defined(darwin_HOST_OS)
+#if defined(darwin_HOST_OS) || defined(ios_HOST_OS)
     mach_timebase_info_data_t info;
     (void) mach_timebase_info(&info);
     timer_scaling_factor_numer = (uint64_t)info.numer;
@@ -70,7 +70,7 @@ Time getCurrentThreadCPUTime(void)
     // N.B. Since macOS Catalina, Darwin supports clock_gettime but does not
     // support clock_getcpuclockid. Hence we prefer to use the Darwin-specific
     // path on Darwin, even if clock_gettime is available.
-#if defined(darwin_HOST_OS)
+#if defined(darwin_HOST_OS) || defined(ios_HOST_OS)
     thread_basic_info_data_t info = { };
     mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
     kern_return_t kern_err = thread_info(mach_thread_self(), THREAD_BASIC_INFO,
@@ -137,7 +137,7 @@ StgWord64 getMonotonicNSec(void)
 #if defined(HAVE_CLOCK_GETTIME)
     return getClockTime(CLOCK_ID);
 
-#elif defined(darwin_HOST_OS)
+#elif defined(darwin_HOST_OS) || defined(ios_HOST_OS)
 
     uint64_t time = mach_absolute_time();
     return (time * timer_scaling_factor_numer) / timer_scaling_factor_denom;
