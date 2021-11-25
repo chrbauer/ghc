@@ -190,12 +190,13 @@ mkPluginUsage hsc_env pluginModule
                 in libLocs ++ dlibLocs
       files <- filterM doesFileExist paths
       case files of
-        [] ->
-          pprPanic
-             ( "mkPluginUsage: missing plugin library, tried:\n"
-              ++ unlines paths
-             )
-             (ppr pNm)
+        -- TODO put this back once we are looking in the correct package DB (build package DB)
+        -- [] ->
+        --  pprPanic
+        --     ( "mkPluginUsage: missing plugin library, tried:\n"
+        --      ++ unlines paths
+        --     )
+        --     (ppr pNm)
         _  -> mapM hashFile (nub files)
     _ -> do
       foundM <- findPluginModule hsc_env pNm
