@@ -34,3 +34,5 @@ mkStoreAccessorPrototype(LibHSghcInitLinkerDone)
 mkStoreAccessorPrototype(LibHSghcGlobalDynFlags)
 mkStoreAccessorPrototype(LibHSghcStaticOptions)
 mkStoreAccessorPrototype(LibHSghcStaticOptionsReady)
+extern HsInt GenSymCounter;
+extern HsInt GenSymInc;

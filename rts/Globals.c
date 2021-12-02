@@ -111,3 +111,5 @@ mkStoreAccessor(LibHSghcInitLinkerDone)
 mkStoreAccessor(LibHSghcGlobalDynFlags)
 mkStoreAccessor(LibHSghcStaticOptions)
 mkStoreAccessor(LibHSghcStaticOptionsReady)
+HsInt GenSymCounter = 0;
+HsInt GenSymInc = 1;

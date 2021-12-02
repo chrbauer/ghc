@@ -646,6 +646,8 @@
       SymI_HasProto(getOrSetLibHSghcPersistentLinkerState)              \
       SymI_HasProto(getOrSetLibHSghcInitLinkerDone)                     \
       SymI_HasProto(getOrSetLibHSghcGlobalDynFlags)                     \
+      SymI_HasProto(GenSymCounter)                                      \
+      SymI_HasProto(GenSymInc)                                          \
       SymI_HasProto(genericRaise)                                       \
       SymI_HasProto(getProgArgv)                                        \
       SymI_HasProto(getFullProgArgv)                                    \
