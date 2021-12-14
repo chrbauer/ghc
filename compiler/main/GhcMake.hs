@@ -66,7 +66,6 @@ import TcBackpack
 import Packages
 import UniqSet
 import Util
-import qualified GHC.LanguageExtensions as LangExt
 import NameEnv
 import FileCleanup
 
@@ -2074,15 +2073,12 @@ downsweep hsc_env old_summaries excl_mods allow_dup_roots
        -- otherwise those modules will fail to compile.
        -- See Note [-fno-code mode] #8025
        map1 <- if hscTarget dflags == HscNothing
-         then enableCodeGenForTH
-           (defaultObjectTarget dflags)
-           map0
-         else if hscTarget dflags == HscInterpreted
-           then enableCodeGenForUnboxedTuplesOrSums
-             (defaultObjectTarget dflags)
-             map0
-           else return map0
+                  then enableCodeGenForTH
+                    (defaultObjectTarget dflags)
+                    map0
+                  else return map0
        return $ concat $ nodeMapElts map1
+
      where
         calcDeps = msDeps
 
@@ -2170,30 +2166,8 @@ enableCodeGenForTH =
       -- can't compile anything anyway! See #16219.
       not (isIndefinite dflags)
 
--- | Update the every ModSummary that is depended on
--- by a module that needs unboxed tuples. We enable codegen to
--- the specified target, disable optimization and change the .hi
--- and .o file locations to be temporary files.
---
--- This is used used in order to load code that uses unboxed tuples
--- or sums into GHCi while still allowing some code to be interpreted.
-enableCodeGenForUnboxedTuplesOrSums :: HscTarget
-  -> NodeMap [Either ErrorMessages ModSummary]
-  -> IO (NodeMap [Either ErrorMessages ModSummary])
-enableCodeGenForUnboxedTuplesOrSums =
-  enableCodeGenWhen condition should_modify TFL_GhcSession TFL_CurrentModule
-  where
-    condition ms =
-      unboxed_tuples_or_sums (ms_hspp_opts ms) &&
-      not (gopt Opt_ByteCodeIfUnboxed (ms_hspp_opts ms)) &&
-      not (isBootSummary ms)
-    unboxed_tuples_or_sums d =
-      xopt LangExt.UnboxedTuples d || xopt LangExt.UnboxedSums d
-    should_modify (ModSummary { ms_hspp_opts = dflags }) =
-      hscTarget dflags == HscInterpreted
-
--- | Helper used to implement 'enableCodeGenForTH' and
--- 'enableCodeGenForUnboxedTuples'. In particular, this enables
+-- | Helper used to implement 'enableCodeGenForTH'.
+-- In particular, this enables
 -- unoptimized code generation for all modules that meet some
 -- condition (first parameter), or are dependencies of those
 -- modules. The second parameter is a condition to check before

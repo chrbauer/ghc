@@ -40,6 +40,8 @@ module StgLint ( lintStgTopBindings ) where
 import GhcPrelude
 
 import StgSyn
+import HscTypes
+import CoreLint ( interactiveInScope )
 
 import DynFlags
 import Bag              ( Bag, emptyBag, isEmptyBag, snocBag, bagToList )
@@ -61,14 +63,14 @@ import Control.Applicative ((<|>))
 import Control.Monad
 
 lintStgTopBindings :: forall a . (OutputablePass a, BinderP a ~ Id)
-                   => DynFlags
+                   => HscEnv
                    -> Module -- ^ module being compiled
                    -> Bool   -- ^ have we run Unarise yet?
                    -> String -- ^ who produced the STG?
                    -> [GenStgTopBinding a]
                    -> IO ()
 
-lintStgTopBindings dflags this_mod unarised whodunnit binds
+lintStgTopBindings hsc_env this_mod unarised whodunnit binds
   = {-# SCC "StgLint" #-}
     case initL this_mod unarised top_level_binds (lint_binds binds) of
       Nothing  ->
@@ -84,9 +86,12 @@ lintStgTopBindings dflags this_mod unarised whodunnit binds
                   text "*** End of Offense ***"])
         Err.ghcExit dflags 1
   where
+    dflags = hsc_dflags hsc_env
     -- Bring all top-level binds into scope because CoreToStg does not generate
     -- bindings in dependency order (so we may see a use before its definition).
-    top_level_binds = mkVarSet (bindersOfTopBinds binds)
+    top_level_binds = mkVarSet (bindersOfTopBinds binds ++
+                                interactiveInScope hsc_env
+                               )
 
     lint_binds :: [GenStgTopBinding a] -> LintM ()
 

@@ -17,6 +17,7 @@ import GhcPrelude
 
 import StgSyn
 
+import HscTypes         ( HscEnv, hsc_dflags )
 import StgLint          ( lintStgTopBindings )
 import StgStats         ( showStgStats )
 import UnariseStg       ( unarise )
@@ -44,12 +45,12 @@ instance MonadUnique StgM where
 runStgM :: Char -> StgM a -> IO a
 runStgM mask (StgM m) = evalStateT m mask
 
-stg2stg :: DynFlags                  -- includes spec of what stg-to-stg passes to do
+stg2stg :: HscEnv                    -- includes spec of what stg-to-stg passes to do
         -> Module                    -- module being compiled
         -> [StgTopBinding]           -- input program
         -> IO [StgTopBinding]        -- output program
 
-stg2stg dflags this_mod binds
+stg2stg hsc_env this_mod binds
   = do  { dump_when Opt_D_dump_stg "STG:" binds
         ; showPass dflags "Stg2Stg"
         -- Do the main business!
@@ -62,9 +63,10 @@ stg2stg dflags this_mod binds
    }
 
   where
+    dflags = hsc_dflags hsc_env
     stg_linter unarised
       | gopt Opt_DoStgLinting dflags
-      = lintStgTopBindings dflags this_mod unarised
+      = lintStgTopBindings hsc_env this_mod unarised
       | otherwise
       = \ _whodunnit _binds -> return ()
 

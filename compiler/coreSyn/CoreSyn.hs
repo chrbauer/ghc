@@ -6,12 +6,18 @@
 {-# LANGUAGE CPP, DeriveDataTypeable, FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 -- | CoreSyn holds all the main data types for use by for the Glasgow Haskell Compiler midsection
 module CoreSyn (
         -- * Main data types
         Expr(..), Alt, Bind(..), AltCon(..), Arg,
-        Tickish(..), TickishScoping(..), TickishPlacement(..),
+        CoreTickish, StgTickish, CmmTickish, XTickishId,
+        GenTickish(..), TickishScoping(..), TickishPlacement(..),
         CoreProgram, CoreExpr, CoreAlt, CoreBind, CoreArg, CoreBndr,
         TaggedExpr, TaggedAlt, TaggedBind, TaggedArg, TaggedBndr(..), deTagExpr,
 
@@ -117,6 +123,8 @@ import Util
 import UniqSet
 import SrcLoc     ( RealSrcSpan, containsSpan )
 import Binary
+
+import GHC.Hs.Extension ( NoExtField )
 
 import Data.Data hiding (TyCon)
 import Data.Int
@@ -260,7 +268,7 @@ data Expr b
   | Case  (Expr b) b Type [Alt b]   -- See Note [Case expression invariants]
                                     -- and Note [Why does Case have a 'Type' field?]
   | Cast  (Expr b) Coercion
-  | Tick  (Tickish Id) (Expr b)
+  | Tick  CoreTickish (Expr b)
   | Type  Type
   | Coercion Coercion
   deriving Data
@@ -932,9 +940,31 @@ type MOutCoercion = MCoercion
 
 -- | Allows attaching extra information to points in expressions
 
+-- | Used as a data type index for the GenTickish annotations
+data TickishPass
+  = TickishCore
+  | TickishStg
+  | TickishCmm
+
+type family XBreakpoint (pass :: TickishPass)
+type instance XBreakpoint 'TickishCore = NoExtField
+-- | Keep track of the type of breakpoints in STG, for GHCi
+type instance XBreakpoint 'TickishStg  = Type
+type instance XBreakpoint 'TickishCmm  = NoExtField
+
+type family XTickishId (pass :: TickishPass)
+type instance XTickishId 'TickishCore = Id
+type instance XTickishId 'TickishStg = Id
+type instance XTickishId 'TickishCmm = NoExtField
+
+type CoreTickish = GenTickish 'TickishCore
+type StgTickish = GenTickish 'TickishStg
+-- | Tickish in Cmm context (annotations only)
+type CmmTickish = GenTickish 'TickishCmm
+
 -- If you edit this type, you may need to update the GHC formalism
 -- See Note [GHC Formalism] in coreSyn/CoreLint.hs
-data Tickish id =
+data GenTickish pass =
     -- | An @{-# SCC #-}@ profiling annotation, either automatically
     -- added by the desugarer as a result of -auto-all, or added by
     -- the user.
@@ -959,8 +989,10 @@ data Tickish id =
   -- NB. we must take account of these Ids when (a) counting free variables,
   -- and (b) substituting (don't substitute for them)
   | Breakpoint
-    { breakpointId     :: !Int
-    , breakpointFVs    :: [id]  -- ^ the order of this list is important:
+    { breakpointExt    :: XBreakpoint pass
+    , breakpointId     :: !Int
+    , breakpointFVs    :: [XTickishId pass]
+                                -- ^ the order of this list is important:
                                 -- it matches the order of the lists in the
                                 -- appropriate entry in HscTypes.ModBreaks.
                                 --
@@ -990,7 +1022,16 @@ data Tickish id =
                                 --   (uses same names as CCs)
     }
 
-  deriving (Eq, Ord, Data)
+deriving instance Eq (GenTickish 'TickishCore)
+deriving instance Ord (GenTickish 'TickishCore)
+deriving instance Data (GenTickish 'TickishCore)
+
+deriving instance Data (GenTickish 'TickishStg)
+
+deriving instance Eq (GenTickish 'TickishCmm)
+deriving instance Ord (GenTickish 'TickishCmm)
+deriving instance Data (GenTickish 'TickishCmm)
+
 
 -- | A "counting tick" (where tickishCounts is True) is one that
 -- counts evaluations in some way.  We cannot discard a counting tick,
@@ -1000,7 +1041,7 @@ data Tickish id =
 -- However, we still allow the simplifier to increase or decrease
 -- sharing, so in practice the actual number of ticks may vary, except
 -- that we never change the value from zero to non-zero or vice versa.
-tickishCounts :: Tickish id -> Bool
+tickishCounts :: GenTickish pass -> Bool
 tickishCounts n@ProfNote{} = profNoteCount n
 tickishCounts HpcTick{}    = True
 tickishCounts Breakpoint{} = True
@@ -1069,7 +1110,7 @@ data TickishScoping =
   deriving (Eq)
 
 -- | Returns the intended scoping rule for a Tickish
-tickishScoped :: Tickish id -> TickishScoping
+tickishScoped :: GenTickish pass -> TickishScoping
 tickishScoped n@ProfNote{}
   | profNoteScope n        = CostCentreScope
   | otherwise              = NoScope
@@ -1082,7 +1123,7 @@ tickishScoped SourceNote{} = SoftScope
 
 -- | Returns whether the tick scoping rule is at least as permissive
 -- as the given scoping rule.
-tickishScopesLike :: Tickish id -> TickishScoping -> Bool
+tickishScopesLike :: GenTickish pass -> TickishScoping -> Bool
 tickishScopesLike t scope = tickishScoped t `like` scope
   where NoScope         `like` _               = True
         _               `like` NoScope         = False
@@ -1101,24 +1142,24 @@ tickishScopesLike t scope = tickishScoped t `like` scope
 -- @tickishCounts@. Note that in principle splittable ticks can become
 -- floatable using @mkNoTick@ -- even though there's currently no
 -- tickish for which that is the case.
-tickishFloatable :: Tickish id -> Bool
+tickishFloatable :: GenTickish pass -> Bool
 tickishFloatable t = t `tickishScopesLike` SoftScope && not (tickishCounts t)
 
 -- | Returns @True@ for a tick that is both counting /and/ scoping and
 -- can be split into its (tick, scope) parts using 'mkNoScope' and
 -- 'mkNoTick' respectively.
-tickishCanSplit :: Tickish id -> Bool
+tickishCanSplit :: GenTickish pass -> Bool
 tickishCanSplit ProfNote{profNoteScope = True, profNoteCount = True}
                    = True
 tickishCanSplit _  = False
 
-mkNoCount :: Tickish id -> Tickish id
+mkNoCount :: GenTickish pass -> GenTickish pass
 mkNoCount n | not (tickishCounts n)   = n
             | not (tickishCanSplit n) = panic "mkNoCount: Cannot split!"
 mkNoCount n@ProfNote{}                = n {profNoteCount = False}
 mkNoCount _                           = panic "mkNoCount: Undefined split!"
 
-mkNoScope :: Tickish id -> Tickish id
+mkNoScope :: GenTickish pass -> GenTickish pass
 mkNoScope n | tickishScoped n == NoScope  = n
             | not (tickishCanSplit n)     = panic "mkNoScope: Cannot split!"
 mkNoScope n@ProfNote{}                    = n {profNoteScope = False}
@@ -1139,7 +1180,7 @@ mkNoScope _                               = panic "mkNoScope: Undefined split!"
 -- Here there is just no operational difference between the first and
 -- the second version. Therefore code generation should simply
 -- translate the code as if it found the latter.
-tickishIsCode :: Tickish id -> Bool
+tickishIsCode :: GenTickish pass -> Bool
 tickishIsCode SourceNote{} = False
 tickishIsCode _tickish     = True  -- all the rest for now
 
@@ -1179,7 +1220,7 @@ data TickishPlacement =
   deriving (Eq)
 
 -- | Placement behaviour we want for the ticks
-tickishPlace :: Tickish id -> TickishPlacement
+tickishPlace :: GenTickish pass -> TickishPlacement
 tickishPlace n@ProfNote{}
   | profNoteCount n        = PlaceRuntime
   | otherwise              = PlaceCostCentre
@@ -1189,7 +1230,8 @@ tickishPlace SourceNote{}  = PlaceNonLam
 
 -- | Returns whether one tick "contains" the other one, therefore
 -- making the second tick redundant.
-tickishContains :: Eq b => Tickish b -> Tickish b -> Bool
+tickishContains :: Eq (GenTickish pass)
+                => GenTickish pass -> GenTickish pass -> Bool
 tickishContains (SourceNote sp1 n1) (SourceNote sp2 n2)
   = containsSpan sp1 sp2 && n1 == n2
     -- compare the String last
@@ -2188,8 +2230,8 @@ stripNArgs _ _ = Nothing
 
 -- | Like @collectArgs@, but also collects looks through floatable
 -- ticks if it means that we can find more arguments.
-collectArgsTicks :: (Tickish Id -> Bool) -> Expr b
-                 -> (Expr b, [Arg b], [Tickish Id])
+collectArgsTicks :: (CoreTickish -> Bool) -> Expr b
+                 -> (Expr b, [Arg b], [CoreTickish])
 collectArgsTicks skipTick expr
   = go expr [] []
   where
@@ -2274,7 +2316,7 @@ data AnnExpr' bndr annot
   | AnnLet      (AnnBind bndr annot) (AnnExpr bndr annot)
   | AnnCast     (AnnExpr bndr annot) (annot, Coercion)
                    -- Put an annotation on the (root of) the coercion
-  | AnnTick     (Tickish Id) (AnnExpr bndr annot)
+  | AnnTick     CoreTickish (AnnExpr bndr annot)
   | AnnType     Type
   | AnnCoercion Coercion
 
@@ -2295,8 +2337,8 @@ collectAnnArgs expr
     go (_, AnnApp f a) as = go f (a:as)
     go e               as = (e, as)
 
-collectAnnArgsTicks :: (Tickish Var -> Bool) -> AnnExpr b a
-                       -> (AnnExpr b a, [AnnExpr b a], [Tickish Var])
+collectAnnArgsTicks :: (CoreTickish -> Bool) -> AnnExpr b a
+                       -> (AnnExpr b a, [AnnExpr b a], [CoreTickish])
 collectAnnArgsTicks tickishOk expr
   = go expr [] []
   where

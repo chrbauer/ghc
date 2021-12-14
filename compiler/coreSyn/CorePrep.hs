@@ -636,9 +636,9 @@ cpeRhsE env (Tick tickish expr)
   = do { body <- cpeBodyNF env expr
        ; return (emptyFloats, mkTick tickish' body) }
   where
-    tickish' | Breakpoint n fvs <- tickish
+    tickish' | Breakpoint ext n fvs <- tickish
              -- See also 'substTickish'
-             = Breakpoint n (map (getIdFromTrivialExpr . lookupCorePrepEnv env) fvs)
+             = Breakpoint ext n (map (getIdFromTrivialExpr . lookupCorePrepEnv env) fvs)
              | otherwise
              = tickish
 
@@ -784,7 +784,7 @@ rhsToBody expr = return (emptyFloats, expr)
 
 data ArgInfo = CpeApp  CoreArg
              | CpeCast Coercion
-             | CpeTick (Tickish Id)
+             | CpeTick CoreTickish
 
 {- Note [runRW arg]
 ~~~~~~~~~~~~~~~~~~~
@@ -1218,7 +1218,7 @@ data FloatingBind
       Bool              -- The bool indicates "ok-for-speculation"
 
  -- | See Note [Floating Ticks in CorePrep]
- | FloatTick (Tickish Id)
+ | FloatTick CoreTickish
 
 data Floats = Floats OkToSpec (OrdList FloatingBind)
 

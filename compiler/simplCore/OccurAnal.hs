@@ -1708,7 +1708,7 @@ occAnal env (Tick tickish body)
   | tickish `tickishScopesLike` SoftScope
   = (markAllNonTailCalled usage, Tick tickish body')
 
-  | Breakpoint _ ids <- tickish
+  | Breakpoint _ _ ids <- tickish
   = (usage_lam `andUDs` foldr addManyOccs emptyDetails ids, Tick tickish body')
     -- never substitute for any of the Ids in a Breakpoint
 
@@ -1841,7 +1841,7 @@ Constructors are rather like lambdas in this way.
 -}
 
 occAnalApp :: OccEnv
-           -> (Expr CoreBndr, [Arg CoreBndr], [Tickish Id])
+           -> (Expr CoreBndr, [Arg CoreBndr], [CoreTickish])
            -> (UsageDetails, Expr CoreBndr)
 occAnalApp env (Var fun, args, ticks)
   | null ticks = (uds, mkApps (Var fun) args')

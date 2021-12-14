@@ -33,7 +33,7 @@ import FastString
 import ForeignCall
 import Outputable
 import SMRep
-import CoreSyn (Tickish)
+import CoreSyn (CmmTickish)
 import qualified Unique as U
 
 import Hoopl.Block
@@ -619,9 +619,6 @@ mapCollectSuccessors f (CmmSwitch e ids)
 mapCollectSuccessors _ n = (n, [])
 
 -- -----------------------------------------------------------------------------
-
--- | Tickish in Cmm context (annotations only)
-type CmmTickish = Tickish ()
 
 -- | Tick scope identifier, allowing us to reason about what
 -- annotations in a Cmm block should scope over. We especially take

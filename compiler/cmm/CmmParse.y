@@ -220,7 +220,7 @@ import GHC.StgToCmm.Closure
 import GHC.StgToCmm.Layout     hiding (ArgRep(..))
 import GHC.StgToCmm.Ticky
 import GHC.StgToCmm.Bind  ( emitBlackHoleCode, emitUpdateFrame )
-import CoreSyn          ( Tickish(SourceNote) )
+import CoreSyn          ( GenTickish(SourceNote) )
 
 import CmmOpt
 import MkGraph

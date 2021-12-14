@@ -20,7 +20,7 @@ import VarSet( seqDVarSet )
 import Var( varType, tyVarKind )
 import Type( seqType, isTyVar )
 import Coercion( seqCo )
-import Id( Id, idInfo )
+import Id( idInfo )
 
 -- | Evaluate all the fields of the 'IdInfo' that are generally demanded by the
 -- compiler
@@ -69,7 +69,7 @@ seqExprs :: [CoreExpr] -> ()
 seqExprs [] = ()
 seqExprs (e:es) = seqExpr e `seq` seqExprs es
 
-seqTickish :: Tickish Id -> ()
+seqTickish :: CoreTickish -> ()
 seqTickish ProfNote{ profNoteCC = cc } = cc `seq` ()
 seqTickish HpcTick{} = ()
 seqTickish Breakpoint{ breakpointFVs = ids } = seqBndrs ids

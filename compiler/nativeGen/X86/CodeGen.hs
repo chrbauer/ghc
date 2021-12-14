@@ -69,7 +69,7 @@ import Hoopl.Collections
 import Hoopl.Graph
 import Hoopl.Label
 import CLabel
-import CoreSyn          ( Tickish(..) )
+import CoreSyn          ( GenTickish(..) )
 import SrcLoc           ( srcSpanFile, srcSpanStartLine, srcSpanStartCol )
 
 -- The rest:

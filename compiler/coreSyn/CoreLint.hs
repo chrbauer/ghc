@@ -15,6 +15,8 @@ module CoreLint (
     lintPassResult, lintInteractiveExpr, lintExpr,
     lintAnnots, lintTypes,
 
+    interactiveInScope,
+
     -- ** Debug output
     endPass, endPassIO,
     dumpPassResult,
@@ -735,10 +737,10 @@ lintCoreExpr (Cast expr co)
 
 lintCoreExpr (Tick tickish expr)
   = do case tickish of
-         Breakpoint _ ids -> forM_ ids $ \id -> do
-                               checkDeadIdOcc id
-                               lookupIdInScope id
-         _                -> return ()
+         Breakpoint _ _ ids -> forM_ ids $ \id -> do
+                                 checkDeadIdOcc id
+                                 lookupIdInScope id
+         _                  -> return ()
        markAllJoinsBadIf block_joins $ lintCoreExpr expr
   where
     block_joins = not (tickish `tickishScopesLike` SoftScope)

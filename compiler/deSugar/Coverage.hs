@@ -366,7 +366,7 @@ addTickLHsBind _  = panic "addTickLHsBind: Impossible Match" -- due to #15884
 
 
 bindTick
-  :: TickDensity -> String -> SrcSpan -> FreeVars -> TM (Maybe (Tickish Id))
+  :: TickDensity -> String -> SrcSpan -> FreeVars -> TM (Maybe CoreTickish)
 bindTick density name pos fvs = do
   decl_path <- getPathEntry
   let
@@ -1189,7 +1189,7 @@ allocTickBox boxLabel countEntries topOnly pos m =
 -- the tick application inherits the source position of its
 -- expression argument to support nested box allocations
 allocATickBox :: BoxLabel -> Bool -> Bool -> SrcSpan -> FreeVars
-              -> TM (Maybe (Tickish Id))
+              -> TM (Maybe CoreTickish)
 allocATickBox boxLabel countEntries topOnly  pos fvs =
   ifGoodTickSrcSpan pos (do
     let
@@ -1203,7 +1203,7 @@ allocATickBox boxLabel countEntries topOnly  pos fvs =
 
 
 mkTickish :: BoxLabel -> Bool -> Bool -> SrcSpan -> OccEnv Id -> [String]
-          -> TM (Tickish Id)
+          -> TM CoreTickish
 mkTickish boxLabel countEntries topOnly pos fvs decl_path = do
 
   let ids = filter (not . isUnliftedType . idType) $ occEnvElts fvs
@@ -1238,7 +1238,7 @@ mkTickish boxLabel countEntries topOnly pos fvs decl_path = do
       c <- liftM tickBoxCount getState
       setState $ \st -> st { tickBoxCount = c + 1
                            , mixEntries = me:mixEntries st }
-      return $ Breakpoint c ids
+      return $ Breakpoint noExtField c ids
 
     SourceNotes | RealSrcSpan pos' <- pos ->
       return $ SourceNote pos' cc_name

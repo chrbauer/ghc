@@ -665,7 +665,7 @@ work out well:
   which is better.
 -}
 
-mkSelectorBinds :: [[Tickish Id]] -- ^ ticks to add, possibly
+mkSelectorBinds :: [[CoreTickish]] -- ^ ticks to add, possibly
                 -> LPat GhcTc     -- ^ The pattern
                 -> CoreExpr       -- ^ Expression to which the pattern is bound
                 -> DsM (Id,[(Id,CoreExpr)])
@@ -890,7 +890,7 @@ the tail call property.  For example, see #3403.
 *                                                                      *
 ********************************************************************* -}
 
-mkOptTickBox :: [Tickish Id] -> CoreExpr -> CoreExpr
+mkOptTickBox :: [CoreTickish] -> CoreExpr -> CoreExpr
 mkOptTickBox = flip (foldr Tick)
 
 mkBinaryTickBox :: Int -> Int -> CoreExpr -> DsM CoreExpr

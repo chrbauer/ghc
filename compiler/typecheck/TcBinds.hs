@@ -20,7 +20,7 @@ import GhcPrelude
 import {-# SOURCE #-} TcMatches ( tcGRHSsPat, tcMatchesFun )
 import {-# SOURCE #-} TcExpr  ( tcMonoExpr )
 import {-# SOURCE #-} TcPatSyn ( tcPatSynDecl, tcPatSynBuilderBind )
-import CoreSyn (Tickish (..))
+import CoreSyn (CoreTickish, GenTickish (..))
 import CostCentre (mkUserCC, CCFlavour(DeclCC))
 import DynFlags
 import FastString
@@ -738,7 +738,7 @@ tcPolyCheck _prag_fn sig bind
   = pprPanic "tcPolyCheck" (ppr sig $$ ppr bind)
 
 funBindTicks :: SrcSpan -> TcId -> Module -> [LSig GhcRn]
-             -> TcM [Tickish TcId]
+             -> TcM [CoreTickish]
 funBindTicks loc fun_id mod sigs
   | (mb_cc_str : _) <- [ cc_name | (dL->L _ (SCCFunSig _ _ _ cc_name)) <- sigs ]
       -- this can only be a singleton list, as duplicate pragmas are rejected

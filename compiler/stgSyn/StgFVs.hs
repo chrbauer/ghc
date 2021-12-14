@@ -1,4 +1,5 @@
 -- | Free variable analysis on STG terms.
+{-# LANGUAGE TypeFamilies #-}
 module StgFVs (
     annTopBindingsFreeVars,
     annBindingFreeVars
@@ -9,7 +10,7 @@ import GhcPrelude
 import StgSyn
 import Id
 import VarSet
-import CoreSyn    ( Tickish(Breakpoint) )
+import CoreSyn    ( GenTickish(Breakpoint) )
 import Outputable
 import Util
 
@@ -103,8 +104,8 @@ expr env = go
       where
         (e', fvs) = go e
         fvs' = unionDVarSet (tickish tick) fvs
-        tickish (Breakpoint _ ids) = mkDVarSet ids
-        tickish _                  = emptyDVarSet
+        tickish (Breakpoint _ _ ids) = mkDVarSet ids
+        tickish _                    = emptyDVarSet
 
     go_bind dc bind body = (dc bind' body', fvs)
       where

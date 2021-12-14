@@ -123,8 +123,10 @@ import MkIface
 import Desugar
 import SimplCore
 import TidyPgm
+import Unique
 import CorePrep
 import CoreToStg        ( coreToStg )
+import CoreUtils        ( exprType )
 import qualified GHC.StgToCmm as StgToCmm ( codeGen )
 import StgSyn
 import StgFVs           ( annTopBindingsFreeVars )
@@ -165,6 +167,8 @@ import Stream (Stream)
 import Util
 
 import Data.List        ( nub, isPrefixOf, partition )
+import Data.Either      ( partitionEithers )
+
 import Control.Monad
 import Data.IORef
 import System.FilePath as FilePath
@@ -1432,7 +1436,7 @@ hscGenHardCode hsc_env cgguts location output_filename = do
         -----------------  Convert to STG ------------------
         (stg_binds, (caf_ccs, caf_cc_stacks))
             <- {-# SCC "CoreToStg" #-}
-               myCoreToStg dflags this_mod prepd_binds
+               myCoreToStg hsc_env this_mod prepd_binds
 
         let cost_centre_info =
               (S.toList local_ccs ++ caf_ccs, caf_cc_stacks)
@@ -1494,8 +1498,12 @@ hscInteractive hsc_env cgguts location = do
     -- Do saturation and convert to A-normal form
     (prepd_binds, _) <- {-# SCC "CorePrep" #-}
                    corePrepPgm hsc_env this_mod location core_binds data_tycons
+
+    (stg_binds, _caf_ccs__caf_cc_stacks)
+      <- {-# SCC "CoreToStg" #-}
+          myCoreToStg hsc_env this_mod prepd_binds
     -----------------  Generate byte code ------------------
-    comp_bc <- byteCodeGen hsc_env this_mod prepd_binds data_tycons mod_breaks
+    comp_bc <- byteCodeGen hsc_env this_mod stg_binds data_tycons mod_breaks
     ------------------ Create f-x-dynamic C-side stuff -----
     (_istub_h_exists, istub_c_exists)
         <- outputForeignStubs dflags this_mod location foreign_stubs
@@ -1572,20 +1580,19 @@ doCodeGen hsc_env this_mod data_tycons
 
 
 
-myCoreToStg :: DynFlags -> Module -> CoreProgram
+myCoreToStg :: HscEnv -> Module -> CoreProgram
             -> IO ( [StgTopBinding] -- output program
                   , CollectedCCs )  -- CAF cost centre info (declared and used)
-myCoreToStg dflags this_mod prepd_binds = do
+myCoreToStg hsc_env this_mod prepd_binds = do
     let (stg_binds, cost_centre_info)
          = {-# SCC "Core2Stg" #-}
-           coreToStg dflags this_mod prepd_binds
+           coreToStg (hsc_dflags hsc_env) this_mod prepd_binds
 
     stg_binds2
         <- {-# SCC "Stg2Stg" #-}
-           stg2stg dflags this_mod stg_binds
+           stg2stg hsc_env this_mod stg_binds
 
     return (stg_binds2, cost_centre_info)
-
 
 {- **********************************************************************
 %*                                                                      *
@@ -1722,9 +1729,13 @@ hscParsedDecls hsc_env decls = runInteractiveHsc hsc_env $ do
     (prepd_binds, _) <- {-# SCC "CorePrep" #-}
       liftIO $ corePrepPgm hsc_env this_mod iNTERACTIVELoc core_binds data_tycons
 
+    (stg_binds, _caf_ccs__caf_cc_stacks)
+        <- {-# SCC "CoreToStg" #-}
+           liftIO $ myCoreToStg hsc_env this_mod prepd_binds
+
     {- Generate byte code -}
     cbc <- liftIO $ byteCodeGen hsc_env this_mod
-                                prepd_binds data_tycons mod_breaks
+                                stg_binds data_tycons mod_breaks
 
     let src_span = srcLocSpan interactiveSrcLoc
     liftIO $ linkDecls hsc_env src_span cbc
@@ -1887,9 +1898,38 @@ hscCompileCoreExpr' hsc_env srcspan ds_expr
            {- Lint if necessary -}
          ; lintInteractiveExpr "hscCompileExpr" hsc_env prepd_expr
 
+           {- Create a temporary binding and convert to STG -}
+         ; let bco_tmp_id = mkSysLocal (fsLit "BCO_toplevel")
+                                       (mkPseudoUniqueE 0)
+                                       (exprType prepd_expr)
+         ; (binds, _) <-
+             myCoreToStg hsc_env
+                         (icInteractiveModule (hsc_IC hsc_env))
+                         [NonRec bco_tmp_id prepd_expr]
+
+         ; let (_strings, lifted_binds) = partitionEithers $ do  -- list monad
+                bnd <- binds
+                case bnd of
+                  StgTopLifted (StgNonRec i expr) -> [Right (i, expr)]
+                  StgTopLifted (StgRec bnds)      -> map Right bnds
+                  StgTopStringLit b str           -> [Left (b, str)]
+
+         ; let stg_expr = case lifted_binds of
+                            [(_i, e)] -> e
+                            _        ->
+                              StgRhsClosure noExtFieldSilent
+                                            dontCareCCS
+                                            ReEntrant
+                                            []
+                                            (StgLet noExtFieldSilent
+                                               (StgRec lifted_binds)
+                                               (StgApp bco_tmp_id []))
+
            {- Convert to BCOs -}
          ; bcos <- coreExprToBCOs hsc_env
-                     (icInteractiveModule (hsc_IC hsc_env)) prepd_expr
+                     (icInteractiveModule (hsc_IC hsc_env))
+                     bco_tmp_id
+                     stg_expr
 
            {- link it -}
          ; hval <- linkExpr hsc_env srcspan bcos

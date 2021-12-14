@@ -7,7 +7,7 @@ import GhcPrelude
 import CLabel
 import CmmExpr         ( GlobalReg(..) )
 import Config          ( cProjectName, cProjectVersion )
-import CoreSyn         ( Tickish(..) )
+import CoreSyn         ( CmmTickish, GenTickish(..) )
 import Debug
 import DynFlags
 import Module
@@ -207,7 +207,7 @@ blockToDwarf df blk
       | Just _ <- dblPosition blk = Just $ mkAsmTempLabel $ dblLabel blk
       | otherwise                 = Nothing   -- block was optimized out
 
-tickToDwarf :: DynFlags -> Tickish () -> [DwarfInfo]
+tickToDwarf :: DynFlags -> CmmTickish -> [DwarfInfo]
 tickToDwarf _  (SourceNote ss _) = [DwarfSrcNote ss]
 tickToDwarf _ _ = []
 
